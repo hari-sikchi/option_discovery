@@ -54,7 +54,7 @@ class StateEnv(gym.Env):
 
         }
        self.task=self.tasks[np.random.choice(len(self.tasks))]
-       print("Selected task: {}".format(self.task))
+    #    print("Selected task: {}".format(self.task))
 
        self.observation_dim=2
        self.action_dim = 2

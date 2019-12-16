@@ -16,6 +16,7 @@ from ppo.arguments import get_args
 from ppo.envs import make_vec_envs
 from ppo.model import Policy
 from ppo.storage import RolloutStorage
+import matplotlib.pyplot as plt
 
 
 def initiliaze_master(envs,args,device):
@@ -256,13 +257,13 @@ def joint_update(args,agents,master_agent,actor_critics,master_actor_critic,devi
 
 
 
-def evaluate(args,agents,master_agent,actor_critics,master_actor_critic,device,envs,rollouts,master_rollouts):
+def evaluate(args,agents,master_agent,actor_critics,master_actor_critic,device,envs,rollouts,master_rollouts,log_data):
     
     # rollouts.obs[0].copy_(obs)
     # rollouts.to(device)
     eval_episodes = 4
 
-    episode_rewards = deque(maxlen=eval_episodes*16)
+    episode_rewards = deque(maxlen=eval_episodes*100)
 
     start = time.time()
     num_updates = int(
@@ -374,7 +375,14 @@ def evaluate(args,agents,master_agent,actor_critics,master_actor_critic,device,e
                     len(episode_rewards), np.mean(episode_rewards),
                     np.median(episode_rewards), np.min(episode_rewards),
                     np.max(episode_rewards)))
-
+        log_data['mean'].append(np.mean(episode_rewards))
+        log_data['median'].append(np.median(episode_rewards))
+        log_data['min'].append(np.min(episode_rewards))
+        log_data['max'].append(np.max(episode_rewards))
+        
+        
+        
+        
     print("Option Discovery Statistics:****************************")
     print("-------------------------------------------------------")
     for key in stats.keys():
@@ -382,12 +390,33 @@ def evaluate(args,agents,master_agent,actor_critics,master_actor_critic,device,e
     print("******************************************************")            
         
 
-            
+def plot_and_save(log_data,log_dir,title="Option learning curve"):
+
+    data = log_data
+    y1 = data['mean']
+    y2 = data['max']
+
+    x = data['iter']
+    # print(x)
     
+    #y = moving_average(y, window=50)
+    # Truncate x
+    x = x[len(x) - len(y1):]
+    x = x[len(x) - len(y2):]
+
+
+    fig = plt.figure(title)
+
+    plt.plot(x, y1,label="mean")
+    plt.plot(x, y2,label="max")
     
-
-
-
+    plt.xlabel('Iters')
+    plt.ylabel('Evaluation')
+    plt.title(title)
+    plt.legend(loc = "upper left")
+    plt.savefig(log_dir+"learning_curve.png")
+    plt.clf()               
+    
 
 
 def main():
@@ -475,12 +504,18 @@ def main():
     #                           actor_critic.recurrent_hidden_state_size)
 
 
-    iters = 100000
+    iters = 100
     eval_interval = 10
-    
+    print("****************************")
+    print("Starting option Discovery")
+    print("****************************")
+    log_data = {'iter':[],'mean':[],'median':[],'min':[],'max':[]}
+    seed = 500
+    log_dir = "logs/opt_dump_"+str(seed)+ "/"
+    os.makedirs(log_dir, exist_ok=True)
     for i in range(iters):
         
-        print("Iteration: {}".format(i))
+        
 
         # Start a new environment[Environment selects a random task]
         envs = make_vec_envs(args.env_name, args.seed, args.num_processes,
@@ -497,10 +532,15 @@ def main():
 
         # Do joint updates
         joint_update(args,agents,master_agent,actor_critics,master_actor_critic,device,envs,rollouts_sub,master_rollouts)
-        # joint_updates = 2
+
         if((i+1)%eval_interval==0):
-             master_actor_critic,master_agent,master_rollouts=initiliaze_master(envs,args,device)
-             evaluate(args,agents,master_agent,actor_critics,master_actor_critic,device,envs,rollouts_sub,master_rollouts)
+            print("Iteration: {}".format(i))
+            log_data['iter'].append(i)
+            master_actor_critic,master_agent,master_rollouts=initiliaze_master(envs,args,device)
+            evaluate(args,agents,master_agent,actor_critics,master_actor_critic,device,envs,rollouts_sub,master_rollouts,log_data)
+            plot_and_save(log_data,log_dir)
+    
+    np.save(log_dir+"log_data.npy",log_data)    
             
 
 if __name__ == "__main__":
