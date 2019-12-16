@@ -504,7 +504,7 @@ def main():
     #                           actor_critic.recurrent_hidden_state_size)
 
 
-    iters = 100
+    iters = 30
     eval_interval = 10
     print("****************************")
     print("Starting option Discovery")
@@ -541,7 +541,15 @@ def main():
             plot_and_save(log_data,log_dir)
     
     np.save(log_dir+"log_data.npy",log_data)    
-            
+    for i,actor_critic in enumerate(actor_critics):
+        torch.save([
+            actor_critic,
+            getattr(utils.get_vec_normalize(envs), 'ob_rms', None)
+        ], os.path.join(log_dir, args.env_name + "_"+str(i)+".pt"))
+    torch.save([
+        master_actor_critic,
+        getattr(utils.get_vec_normalize(envs), 'ob_rms', None)
+    ], os.path.join(log_dir, args.env_name + "_master.pt"))                
 
 if __name__ == "__main__":
     main()
